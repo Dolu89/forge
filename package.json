@@ -1,6 +1,7 @@
 {
-  "name": "nuxt-app",
+  "name": "forge",
   "private": true,
+  "main": "dist-electron/main.js",
   "scripts": {
     "build": "nuxt build",
     "dev": "nuxt dev",
@@ -11,6 +12,14 @@
   "devDependencies": {
     "@nuxt/devtools": "latest",
     "@types/node": "^18.17.3",
-    "nuxt": "^3.6.5"
+    "electron": "^25.5.0",
+    "electron-builder": "^24.6.3",
+    "nuxt": "^3.6.5",
+    "nuxt-electron": "^0.6.0",
+    "vite-plugin-electron": "0.13.0-beta.1",
+    "vite-plugin-electron-renderer": "^0.14.5"
+  },
+  "dependencies": {
+    "nostr-tools": "^1.14.0"
   }
 }
