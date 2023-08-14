@@ -12,6 +12,11 @@ let subs = new Map()
 
 let lastPurge = Date.now()
 
+const log = (message) => {
+  console.log(message)
+  process.send(message)
+}
+
 if (process.env.PURGE_INTERVAL) {
   console.log('Purging events every', process.env.PURGE_INTERVAL, 'seconds')
   setInterval(() => {
@@ -23,7 +28,7 @@ if (process.env.PURGE_INTERVAL) {
 wss.on('connection', socket => {
   connCount += 1
 
-  console.log('Received connection', {pid, connCount})
+  log(`Received connection ${JSON.stringify({pid, connCount})}`)
 
   const relay = new Instance(socket)
 

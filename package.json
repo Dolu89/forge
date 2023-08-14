@@ -12,14 +12,26 @@
   "devDependencies": {
     "@nuxt/devtools": "latest",
     "@types/node": "^18.17.3",
+    "@vicons/fluent": "^0.12.0",
+    "@vicons/utils": "^0.1.4",
     "electron": "^25.5.0",
     "electron-builder": "^24.6.3",
+    "naive-ui": "^2.34.4",
     "nuxt": "^3.6.5",
     "nuxt-electron": "^0.6.0",
+    "unplugin-auto-import": "^0.16.6",
+    "unplugin-vue-components": "^0.25.1",
+    "vfonts": "^0.0.3",
     "vite-plugin-electron": "0.13.0-beta.1",
     "vite-plugin-electron-renderer": "^0.14.5"
   },
   "dependencies": {
-    "nostr-tools": "^1.14.0"
+    "@pinia/nuxt": "^0.4.11",
+    "@vueuse/rxjs": "^10.3.0",
+    "axios": "^1.4.0",
+    "dexie": "^3.2.4",
+    "nostr-tools": "^1.14.0",
+    "pinia": "^2.1.6",
+    "rxjs": "^7.8.1"
   }
 }
