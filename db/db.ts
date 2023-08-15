@@ -1,32 +1,22 @@
 import Dexie, { Table } from 'dexie';
+import { RelayType } from '~/enums';
 
 export interface Relay {
   id?: number;
   port: number;
-}
-
-export interface Settings {
-  id?: number;
-  portStart: number;
+  containerIds: string[];
+  relayType: RelayType;
+  relayTag: string;
 }
 
 export class DbContext extends Dexie {
   relays!: Table<Relay>;
-  settings!: Table<Settings>;
 
   constructor() {
     super('forge');
     this.version(1).stores({
-      relays: '++id, port',
-      settings: '++id, portStart'
+      relays: '++id, port, containerIds, relayType, relayTag',
     });
-
-    this.on('ready', async () => {
-      const settings = await this.settings.toArray();
-      if (settings.length === 0) {
-        await this.settings.add({ portStart: 9300 });
-      }
-    })
   }
 }
 

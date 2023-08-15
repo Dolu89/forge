@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
-import axios from 'axios'
-import { db, Relay } from '~/db/db'
-import RelayService, { RelayExtended } from '~/services/RelayService'
+import { db } from '~/db/db'
 import { IndexableType } from 'dexie'
+import { RelayType } from '~/enums'
+import { RelayExtended } from '~/interfaces'
 
 export const useRelaysStore = defineStore('relays', {
   state: (): { relays: RelayExtended[] } => {
@@ -15,45 +15,38 @@ export const useRelaysStore = defineStore('relays', {
   },
   actions: {
     async initStore() {
-      this.relays = (await db.relays.toArray()).map(r => {
-        return {
-          ...r,
-          running: RelayService.hasChildProcess(r.port)
-        }
-      });
+      this.relays = await RelayService.getAll();
     },
-    async add() {
-      const result = await axios.post('/api/start-relay', { port: await RelayService.getNextPort() })
-      if (result.status === 200) {
-        const relayId = await db.relays.add({ port: result.data.port });
-        this.relays = [...this.relays, ({ port: result.data.port, id: relayId as number, running: true })]
-      }
+    async add(relayType: RelayType, tag: string) {
+      const relay = await RelayService.add(relayType, tag)
+      this.relays = [...this.relays, relay]
     },
     async remove(id?: number) {
       const relay = this.relays.find(r => r.id === id)
       if (!relay) return;
-      await this.stop(relay.port)
-      await db.relays.delete(id as IndexableType);
+      await RelayService.remove(relay.port)
       this.relays = this.relays.filter(r => r.id !== id)
     },
     async start(port: number) {
-      await axios.post('/api/start-relay', { port })
       const relay = this.relays.find(r => r.port === port)
-      if (relay) relay.running = true;
+      if (!relay) return
+      const status = await RelayService.start(port)
+      relay.status = status
     },
     async stop(port: number) {
-      await axios.post('/api/stop-relay', { port })
       const relay = this.relays.find(r => r.port === port)
-      if (relay) relay.running = false;
+      if (!relay) return
+      const status = await RelayService.stop(port)
+      relay.status = status
     },
     async startAll() {
       for (const relay of this.relays) {
-        await this.start(relay.port)
+        this.start(relay.port)
       }
     },
     async stopAll() {
       for (const relay of this.relays) {
-        await this.stop(relay.port)
+        this.stop(relay.port)
       }
     }
   },

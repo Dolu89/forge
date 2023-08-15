@@ -1,0 +1,6 @@
+version: '3.3'
+services:
+    nostr-rs-relay-{{port}}:
+        image: dolu89/forge-nostr-rs-relay:{{tag}}
+        ports:
+            - '{{port}}:8080'

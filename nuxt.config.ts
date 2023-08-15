@@ -6,7 +6,7 @@ import { NaiveUiResolver } from 'unplugin-vue-components/resolvers'
 export default defineNuxtConfig({
   devtools: { enabled: true },
   imports: {
-    dirs: ['services']
+    dirs: ['./services', './db', './types']
   },
   vite: {
     plugins: [
@@ -26,7 +26,7 @@ export default defineNuxtConfig({
       Components({
         resolvers: [NaiveUiResolver()]
       })
-    ]
+    ],
   },
   modules: ['nuxt-electron', '@pinia/nuxt'],
   electron: {
@@ -35,6 +35,15 @@ export default defineNuxtConfig({
         // Main-Process entry file of the Electron App.
         entry: 'electron/main.ts',
       },
+      {
+        entry: 'electron/preload.ts',
+        onstart(options) {
+          // Notify the Renderer-Process to reload the page when the Preload-Scripts build is complete, 
+          // instead of restarting the entire Electron App.
+          options.reload()
+        },
+      },
     ],
+    renderer: {},
   },
 })
