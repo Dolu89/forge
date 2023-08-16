@@ -16,6 +16,17 @@ class RelayService {
         return firstUnusedPort;
     }
 
+    public async getById(id: number): Promise<RelayExtended | undefined> {
+        const relay = await db.relays.get({ id });
+        if (!relay) return undefined;
+        const statusResult = await axios.post('/api/docker/status', { containerIds: relay.containerIds })
+        if (statusResult.status !== 200) throw new Error('Failed to get status');
+        return {
+            ...relay,
+            status: statusResult.data,
+        }
+    }
+
     public async getAll(): Promise<RelayExtended[]> {
         const relays = await db.relays.toArray();
         const relayPromises = relays.map(async (r) => {

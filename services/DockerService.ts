@@ -76,6 +76,14 @@ class DockerService {
         }
     }
 
+    public getContainer(containerId: string): Dockerode.Container {
+        if (!this.docker) {
+            throw new Error('Docker not initialized');
+        }
+
+        return this.docker.getContainer(containerId)
+    }
+
     public async stopContainers(containerIds: string[]): Promise<void> {
         if (!this.docker) {
             throw new Error('Docker not initialized');

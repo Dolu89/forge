@@ -1,21 +1,25 @@
 import { defineStore } from 'pinia'
-import { db } from '~/db/db'
-import { IndexableType } from 'dexie'
 import { RelayType } from '~/enums'
 import { RelayExtended } from '~/interfaces'
 
 export const useRelaysStore = defineStore('relays', {
-  state: (): { relays: RelayExtended[] } => {
-    return { relays: [] }
+  state: (): { relays: RelayExtended[], current: number } => {
+    return { relays: [], current: 0 }
   },
   getters: {
     getAll: (state): RelayExtended[] => {
       return state.relays.sort((a, b) => a.port - b.port);
+    },
+    getCurrent: (state): RelayExtended | undefined => {
+      return state.relays.find(r => r.id === state.current)
     }
   },
   actions: {
     async initStore() {
       this.relays = await RelayService.getAll();
+    },
+    setCurrent(id: number) {
+      this.current = id
     },
     async add(relayType: RelayType, tag: string) {
       const relay = await RelayService.add(relayType, tag)

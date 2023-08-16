@@ -4,6 +4,9 @@ dependencies:
   '@pinia/nuxt':
     specifier: ^0.4.11
     version: 0.4.11(vue@3.3.4)
+  ansi-regex:
+    specifier: ^6.0.1
+    version: 6.0.1
   axios:
     specifier: ^1.4.0
     version: 1.4.0
@@ -16,6 +19,9 @@ dependencies:
   dockerode-compose:
     specifier: ^1.3.3
     version: 1.3.3
+  highlight.js:
+    specifier: ^11.8.0
+    version: 11.8.0
   nostr-tools:
     specifier: ^1.14.0
     version: 1.14.0
@@ -2018,7 +2024,6 @@ packages:
   /ansi-regex@6.0.1:
     resolution: {integrity: sha512-n5M855fKb2SsfMIiFFoVrABHJC8QtHwVx+mHWP3QcEqBHYienj5dHSgjbxtC0WEZXYt4wcD6zrQElDPhFuZgfA==}
     engines: {node: '>=12'}
-    dev: true
 
   /ansi-styles@3.2.1:
     resolution: {integrity: sha512-VT0ZI6kZRdTh8YyJw3SMbYm/u+NqfsAxEpWO0Pf9sq8/e94WxxOpPKx9FR1FlyCtOVDNOQ+8ntlqFxiRc+r5qA==}
@@ -4107,7 +4112,6 @@ packages:
   /highlight.js@11.8.0:
     resolution: {integrity: sha512-MedQhoqVdr0U6SSnWPzfiadUcDHfN/Wzq25AkXiQv9oiOO/sG0S7XkvpFIqWBl9Yq1UYyYOOVORs5UW2XlPyzg==}
     engines: {node: '>=12.0.0'}
-    dev: true
 
   /hookable@5.5.3:
     resolution: {integrity: sha512-Yc+BQe8SvoXH1643Qez1zqLRmbA5rCL+sSmk6TVos0LWVfNIB7PGncdlId77WzLGSIB5KaWgTaNTs2lNVEI6VQ==}
