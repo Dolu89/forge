@@ -1,13 +1,19 @@
-import { DockerStatus, RelayType } from '~/enums';
-import Dockerode from 'dockerode';
 // @ts-ignore
-import DockerodeCompose from 'dockerode-compose';
 import fs from 'node:fs/promises';
+import { DockerStatus, RelayType } from '../enums';
+import stream from "stream"
+import ansiRegex from 'ansi-regex'
+import { isProd } from "../utils"
+import { app } from "electron"
+
+// CommonJS only. ES Modules not supported for Dockerode when called from Electron main process. But works fine as type
+const Docker = require('dockerode');
+import type Dockerode from 'dockerode';
+const DockerodeCompose = require('dockerode-compose');
 
 class DockerService {
 
-    initialized: boolean = false;
-    docker: Dockerode | undefined;
+    private docker: Dockerode | undefined
 
     constructor() {
         console.log('docker service init')
@@ -24,11 +30,13 @@ class DockerService {
         for (const socketPath of socketPaths) {
             if (await fs.stat(socketPath)) {
                 console.log('docker socket detected:', socketPath);
-                this.docker = new Dockerode({ socketPath });
-                this.initialized = true;
+                this.docker = new Docker({ socketPath });
                 break;
             }
         }
+
+        if (this.docker) return
+        this.docker = new Docker()
     }
 
     public async getStatus(containerIds: string[]): Promise<DockerStatus> {
@@ -38,7 +46,7 @@ class DockerService {
 
         let allStatus = []
         for (const containerId of containerIds) {
-            const container = this.docker.getContainer(containerId)
+            const container = this.getContainer(containerId)
             const containerInfo = await container.inspect()
             allStatus.push(containerInfo.State.Status === 'running')
         }
@@ -58,7 +66,7 @@ class DockerService {
         }
 
         for (const containerId of containerIds) {
-            const container = this.docker.getContainer(containerId)
+            const container = this.getContainer(containerId)
             await container.start().catch(() => console.log('Relay already started'))
         }
     }
@@ -71,7 +79,7 @@ class DockerService {
         console.log("removing containers", containerIds.join(", "))
 
         for (const containerId of containerIds) {
-            const container = this.docker.getContainer(containerId)
+            const container = this.getContainer(containerId)
             await container.remove()
         }
     }
@@ -90,12 +98,12 @@ class DockerService {
         }
 
         for (const containerId of containerIds) {
-            const container = this.docker.getContainer(containerId)
+            const container = this.getContainer(containerId)
             await container.stop().catch(() => console.log('Relay already stopped'))
         }
     }
 
-    public async launch(port: number, relayType: RelayType, tag: string): Promise<string[]> {
+    public async create(port: number, relayType: RelayType, tag: string): Promise<{ port: number, containerIds: string[] }> {
         if (!this.docker) {
             throw new Error('Docker not initialized');
         }
@@ -105,99 +113,55 @@ class DockerService {
         switch (relayType) {
             case RelayType.NostrRsRelay:
                 composeFileName = `docker-compose.nostr-rs-relay.yml`
-                const composeFile = await fs.readFile(`./docker/${composeFileName}`, 'utf8')
+                const composeFile = await fs.readFile(`${app.getAppPath()}/docker/${composeFileName}`, 'utf8')
                 composeFileData = composeFile.replaceAll('{{tag}}', tag).replaceAll('{{port}}', port.toString())
                 break;
             default:
                 throw new Error('Unknown relay type')
         }
 
-        await fs.writeFile('./docker/docker-compose.yml', composeFileData)
-        const compose = new DockerodeCompose(this.docker, './docker/docker-compose.yml', 'forge')
+        const destinationFolder = `${app.getPath('userData')}/docker`
+        await fs.mkdir(destinationFolder, { recursive: true })
+        const finalComposeFilePath = `${destinationFolder}/docker-compose.yml`
+        await fs.writeFile(finalComposeFilePath, composeFileData)
+        const compose = new DockerodeCompose(this.docker, finalComposeFilePath, isProd ? 'forge' : 'forge_dev')
         const state = await compose.up()
 
-        return state.services.map((s: { id: string }) => s.id)
-
-        // let imageName = ''
-        // let options: Dockerode.ContainerCreateOptions = { Tty: true }
-        // switch (relayType) {
-        //     case RelayType.NostrRsRelay:
-        //         imageName = `dolu89/forge-nostr-rs-relay:${tag}`
-        //         options = {
-        //             ...options,
-        //             name: `forge-nostr-rs-relay-${port}`,
-        //             ExposedPorts: {
-        //                 "8080/tcp": {}
-        //             },
-        //             HostConfig: {
-        //                 PortBindings: {
-        //                     "8080/tcp": [
-        //                         {
-        //                             "HostPort": port.toString()
-        //                         }
-        //                     ]
-        //                 }
-        //             }
-        //         }
-        //         break;
-        //     default:
-        //         throw new Error('Unknown relay type')
-        // }
-
-        // console.log('pulling image...')
-        // await this.docker.pull(imageName, {})
-        // // Hack. After pulling an image, we need to wait a bit before creating the container
-        // await new Promise(resolve => setTimeout(resolve, 1000));
-
-        // Works, but doesn't release the terminal
-        // const container = await this.docker.run(imageName, [], process.stdout, options)
-        // return container.id
-
-        // const container = await this.docker.createContainer({
-        //     Image: imageName,
-        //     name: "nostr-rs-relay",
-        //     ExposedPorts: {
-        //         "8080/tcp": {}
-        //     },
-        //     HostConfig: {
-        //         PortBindings: {
-        //             "8080/tcp": [
-        //                 {
-        //                     "HostPort": "8080"
-        //                 }
-        //             ]
-        //         }
-        //     }
-        // })
-        // const container = await this.docker.createContainer({
-        //     Image: imageName,
-        //     ...options
-        // })
-
-        // container.start({}, (err, stream) => {
-        //     if (err) return;
-        //     container.modem.demuxStream(stream, process.stdout, process.stderr);
-        // })
-        // const stream = await exec.start({ Detach: true })
-        // container.modem.demuxStream(stream, process.stdout, process.stderr);
-        // container.exec(options, function (err, exec) {
-        //     console.log('exec', err, exec)
-        //     if (err) return;
-        //     exec?.start({}, (err, stream) => {
-        //         console.log('start', err, stream)
-        //         if (err) return;
-
-        //         console.log('stream', stream)
-        //         container.modem.demuxStream(stream, process.stdout, process.stderr);
-
-        //         // exec.inspect(function (err, data) {
-        //         //     if (err) return;
-        //         //     console.log(data);
-        //         // });
-        //     });
-        // });
-        // return container.id
+        return {
+            port,
+            containerIds: state.services.map((s: { id: string }) => s.id)
+        }
     }
+
+    public streamLogs(containerIds: string[], callback: (data: string) => void): () => void {
+        const streams: stream.PassThrough[] = []
+        for (const containerId of containerIds) {
+            const container = this.getContainer(containerId)
+            var logStream = new stream.PassThrough();
+            streams.push(logStream)
+
+            logStream.on('data', function (chunk: Buffer) {
+                let data = chunk.toString('utf8')
+                data = data.replace(ansiRegex(), '')
+                callback(data)
+            });
+
+            container.logs({ follow: true, stdout: true, stderr: true, tail: 100 }, function (err: unknown, stream: NodeJS.ReadableStream | undefined) {
+                if (err) return
+                container.modem.demuxStream(stream, logStream, logStream);
+            });
+
+        }
+
+        function close() {
+            for (const stream of streams) {
+                stream.destroy()
+            }
+        }
+
+        return close
+    }
+
 }
 
-export default new DockerService();
+export default new DockerService()

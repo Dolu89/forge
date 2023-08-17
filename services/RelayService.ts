@@ -1,7 +1,6 @@
 import { Relay, db } from "~/db/db";
 import { DockerStatus, RelayType } from "~/enums";
 import relayData from "~/data/relay";
-import axios from "axios";
 import { RelayExtended } from "~/interfaces";
 
 class RelayService {
@@ -19,74 +18,61 @@ class RelayService {
     public async getById(id: number): Promise<RelayExtended | undefined> {
         const relay = await db.relays.get({ id });
         if (!relay) return undefined;
-        const statusResult = await axios.post('/api/docker/status', { containerIds: relay.containerIds })
-        if (statusResult.status !== 200) throw new Error('Failed to get status');
         return {
             ...relay,
-            status: statusResult.data,
+            status: await window.api.docker.getStatus(relay.containerIds),
         }
     }
 
     public async getAll(): Promise<RelayExtended[]> {
         const relays = await db.relays.toArray();
         const relayPromises = relays.map(async (r) => {
-            const statusResult = await axios.post('/api/docker/status', { containerIds: r.containerIds })
-            if (statusResult.status !== 200) throw new Error('Failed to get status');
             return {
                 ...r,
-                status: statusResult.data,
+                status: await window.api.docker.getStatus(r.containerIds),
             }
         });
         return await Promise.all(relayPromises);
     }
 
     public async add(relayType: RelayType, tag: string): Promise<RelayExtended> {
-        const result = await axios.post('/api/docker/launch', {
-            port: await this.getNextPort(relayType),
-            relayType,
-            tag
-        })
-        if (result.status !== 200) throw new Error('Failed to launch container');
+        const nextPort = await this.getNextPort(relayType);
+        const result = await window.api.docker.create(nextPort, relayType, tag);
 
-        const data = result.data.data
         const relay: Relay = {
-            port: data.port,
-            containerIds: data.containerIds,
+            port: nextPort,
+            containerIds: result.containerIds,
             relayType,
             relayTag: tag
         }
         const relayId = await db.relays.add(relay);
 
-        const statusResult = await axios.post('/api/docker/status', { containerIds: data.containerIds })
-        if (statusResult.status !== 200) throw new Error('Failed to get status');
+        const status = await window.api.docker.getStatus(relay.containerIds)
 
-        return { ...relay, id: relayId as number, status: statusResult.data };
+        return { ...relay, id: relayId as number, status: status };
     }
 
     public async start(port: number): Promise<DockerStatus> {
         const relay = await db.relays.get({ port });
         if (!relay) throw new Error('Relay not found');
-        const result = await axios.post('/api/docker/start', { containerIds: relay.containerIds })
-        if (result.status !== 200) throw new Error('Failed to start container');
-        return result.data;
+        await window.api.docker.start(relay.containerIds);
+        const status = await window.api.docker.getStatus(relay.containerIds);
+        return status;
     }
 
     public async stop(port: number): Promise<DockerStatus> {
         const relay = await db.relays.get({ port });
         if (!relay) throw new Error('Relay not found');
-        const result = await axios.post('/api/docker/stop', { containerIds: relay.containerIds })
-        if (result.status !== 200) throw new Error('Failed to stop container');
-        return result.data;
+        await window.api.docker.stop(relay.containerIds);
+        const status = await window.api.docker.getStatus(relay.containerIds);
+        return status;
     }
 
     public async remove(port: number) {
         const relay = await db.relays.get({ port });
         if (!relay) throw new Error('Relay not found');
-        console.log('Stopping relay')
         await this.stop(port);
-        console.log('Deleting containers')
-        await axios.post('/api/docker/delete', { containerIds: relay.containerIds })
-        console.log('Deleting relay from DB')
+        await window.api.docker.remove(relay.containerIds);
         await db.relays.delete(relay.id as number);
     }
 

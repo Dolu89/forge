@@ -8,7 +8,15 @@ export default defineNuxtConfig({
   imports: {
     dirs: ['./services', './db', './types']
   },
+  router: {
+    options: {
+      hashMode: true,
+    },
+  },
   vite: {
+    server: {
+      middlewareMode: false,
+    },
     plugins: [
       AutoImport({
         imports: [

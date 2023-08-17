@@ -103,47 +103,52 @@ const logInstRef = ref<LogInst | null>(null);
 const logRef = ref("");
 const route = useRoute();
 const relayStore = useRelaysStore();
-let eventSource: EventSource | null = null;
+const { $docker } = useNuxtApp();
+
+const id = Number(route.params.id);
+let isStreamingLogs = false;
 
 onBeforeMount(async () => {
-  await fetchLogs(Number(route.params.id));
-  relayStore.setCurrent(Number(route.params.id));
+  await streamLogs(id);
+  relayStore.setCurrent(id);
 });
 
 onUnmounted(() => {
-  eventSource?.close();
-  eventSource = null;
+  stopStreamLogs();
 });
 
 watch(
   () => relayStore.getCurrent?.status,
   async (status: DockerStatus | undefined) => {
     if (status === DockerStatus.Running) {
-      await fetchLogs(Number(route.params.id));
+      await streamLogs(id);
     } else {
-      eventSource?.close();
-      eventSource = null;
+      stopStreamLogs();
     }
   }
 );
 
-async function fetchLogs(id: number) {
-  if (eventSource) return;
+async function streamLogs(id: number) {
+  if (isStreamingLogs) return;
 
   const relay = await RelayService.getById(id);
-  if (relay?.status !== DockerStatus.Running) return;
+  if (
+    relay?.status !== DockerStatus.Running ||
+    relay?.containerIds.length === 0
+  )
+    return;
 
-  const url = new URL(`/api/docker/logs`, window.location.origin);
-
-  for (const containerId of relay?.containerIds ?? []) {
-    url.searchParams.append("containerIds", containerId);
-  }
-
-  eventSource = new EventSource(url.toString());
-  eventSource.onmessage = (event) => {
-    logRef.value += event.data + "\n";
+  $docker.streamLogs(id.toString(), relay?.containerIds, (data) => {
+    logRef.value += data + "\n";
     logInstRef.value?.scrollTo({ position: "bottom", slient: true });
-  };
+  });
+
+  isStreamingLogs = true;
+}
+
+function stopStreamLogs() {
+  $docker.stopStreamLogs(id.toString());
+  isStreamingLogs = false;
 }
 
 const btnDisabled = ref(false);
