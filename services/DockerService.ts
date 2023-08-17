@@ -11,7 +11,7 @@ import stream from "stream"
 import ansiRegex from 'ansi-regex'
 import { isProd } from "../utils"
 import { app } from "electron"
-import { isLinux, isMac } from '~/utils/system';
+import { isLinux, isMac } from '../utils/system';
 
 class DockerService {
 
