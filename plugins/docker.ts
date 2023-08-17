@@ -1,5 +1,9 @@
 export default defineNuxtPlugin(() => {
 
+  const getDockerStatus = async () => {
+    return window.api.docker.getDockerStatus()
+  }
+
   const getStatus = async (containerIds: string[]) => {
     return window.api.docker.getStatus(containerIds)
   }
@@ -37,6 +41,7 @@ export default defineNuxtPlugin(() => {
   return {
     provide: {
       docker: {
+        getDockerStatus,
         getStatus,
         getContainer,
         start,

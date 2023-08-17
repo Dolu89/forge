@@ -7,6 +7,7 @@ declare global {
   interface Window {
     api: {
       docker: {
+        getDockerStatus: () => Promise<DockerStatus>,
         getStatus: (containerIds: string[]) => Promise<DockerStatus>,
         getContainer: (containerId: string) => Promise<Dockerode.Container>,
         start: (containerIds: string[]) => Promise<void>,

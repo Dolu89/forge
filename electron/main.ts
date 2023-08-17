@@ -45,6 +45,9 @@ function bootstrap() {
     }
   }
 
+  ipcMain.handle('docker:dockerStatus', async (_) => {
+    return Docker.getDockerStatus()
+  })
   ipcMain.handle('docker:status', async (_, containerIds: string[]) => {
     return Docker.getStatus(containerIds)
   })

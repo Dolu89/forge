@@ -39,6 +39,11 @@ class DockerService {
         this.docker = new Docker()
     }
 
+    public async getDockerStatus(): Promise<DockerStatus> {
+        await this.intialize().catch(() => { });
+        return this.docker ? DockerStatus.Running : DockerStatus.Stopped
+    }
+
     public async getStatus(containerIds: string[]): Promise<DockerStatus> {
         if (!this.docker) {
             throw new Error('Docker not initialized');

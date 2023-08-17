@@ -2,6 +2,9 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 contextBridge.exposeInMainWorld('api', {
     docker: {
+        getDockerStatus: async () => {
+            return ipcRenderer.invoke('docker:dockerStatus')
+        },
         getStatus: async (containerIds: string[]) => {
             return ipcRenderer.invoke('docker:status', containerIds)
         },
