@@ -1,0 +1,6 @@
+version: '3.3'
+services:
+  nostream-{{port}}:
+    image: dolu89/forge-nostream:{{tag}}
+    ports:
+      - '{{port}}:80'

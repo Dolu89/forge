@@ -108,36 +108,6 @@ class DockerService {
         }
     }
 
-    public async create(port: number, relayType: RelayType, tag: string): Promise<{ port: number, containerIds: string[] }> {
-        if (!this.docker) {
-            throw new Error('Docker not initialized');
-        }
-
-        let composeFileName = ''
-        let composeFileData = ''
-        switch (relayType) {
-            case RelayType.NostrRsRelay:
-                composeFileName = `docker-compose.nostr-rs-relay.yml`
-                const composeFile = await fs.readFile(`${app.getAppPath()}/docker/${composeFileName}`, 'utf8')
-                composeFileData = composeFile.replaceAll('{{tag}}', tag).replaceAll('{{port}}', port.toString())
-                break;
-            default:
-                throw new Error('Unknown relay type')
-        }
-
-        const destinationFolder = `${app.getPath('userData')}/docker`
-        await fs.mkdir(destinationFolder, { recursive: true })
-        const finalComposeFilePath = `${destinationFolder}/docker-compose.yml`
-        await fs.writeFile(finalComposeFilePath, composeFileData)
-        const compose = new DockerodeCompose(this.docker, finalComposeFilePath, isProd ? 'forge' : 'forge_dev')
-        const state = await compose.up()
-
-        return {
-            port,
-            containerIds: state.services.map((s: { id: string }) => s.id)
-        }
-    }
-
     public streamLogs(containerIds: string[], callback: (data: string) => void): () => void {
         const streams: stream.PassThrough[] = []
         for (const containerId of containerIds) {
@@ -165,6 +135,51 @@ class DockerService {
         }
 
         return close
+    }
+
+    public async create(port: number, relayType: RelayType, tag: string): Promise<{ port: number, containerIds: string[] }> {
+        if (!this.docker) {
+            throw new Error('Docker not initialized');
+        }
+
+        let composeFileData = ''
+        switch (relayType) {
+            case RelayType.NostrRsRelay:
+                composeFileData = await this.getNostrRsRelayDockerComposeFileData(tag, port)
+                break;
+            case RelayType.Nostream:
+                composeFileData = await this.getNostreamDockerComposeFileData(tag, port)
+                break;
+            default:
+                throw new Error('Unknown relay type')
+        }
+
+        const destinationFolder = `${app.getPath('userData')}/docker`
+        await fs.mkdir(destinationFolder, { recursive: true })
+        const finalComposeFilePath = `${destinationFolder}/docker-compose.yml`
+        await fs.writeFile(finalComposeFilePath, composeFileData)
+        const dockerGroupName = isProd ? 'forge_' : 'forge_dev_' + port.toString()
+        const compose = new DockerodeCompose(this.docker, finalComposeFilePath, dockerGroupName)
+        const state = await compose.up()
+
+        return {
+            port,
+            containerIds: state.services.map((s: { id: string }) => s.id)
+        }
+    }
+
+    private async getDockerComposeFileData(composeFileName: string) {
+        return fs.readFile(`${app.getAppPath()}/docker/${composeFileName}`, 'utf8')
+    }
+
+    private async getNostrRsRelayDockerComposeFileData(tag: string, port: number) {
+        const composeFile = await this.getDockerComposeFileData('docker-compose.nostr-rs-relay.yml')
+        return composeFile.replaceAll('{{tag}}', tag).replaceAll('{{port}}', port.toString())
+    }
+
+    private async getNostreamDockerComposeFileData(tag: string, port: number) {
+        const composeFile = await this.getDockerComposeFileData('docker-compose.nostream.yml')
+        return composeFile.replaceAll('{{tag}}', tag).replaceAll('{{port}}', port.toString())
     }
 
 }
