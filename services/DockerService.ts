@@ -158,8 +158,8 @@ class DockerService {
         await fs.mkdir(destinationFolder, { recursive: true })
         const finalComposeFilePath = `${destinationFolder}/docker-compose.yml`
         await fs.writeFile(finalComposeFilePath, composeFileData)
-        const dockerGroupName = isProd ? 'forge_' : 'forge_dev_' + port.toString()
-        const compose = new DockerodeCompose(this.docker, finalComposeFilePath, dockerGroupName)
+        const dockerGroupName = isProd ? 'forge_' : 'forge_dev_'
+        const compose = new DockerodeCompose(this.docker, finalComposeFilePath, dockerGroupName + port.toString())
         const state = await compose.up()
 
         return {
