@@ -1,3 +1,9 @@
+
+// CommonJS only. ES Modules not supported for Dockerode when called from Electron main process. But works fine as type
+const Docker = require('dockerode');
+import type Dockerode from 'dockerode';
+const DockerodeCompose = require('dockerode-compose');
+
 // @ts-ignore
 import fs from 'node:fs/promises';
 import { DockerStatus, RelayType } from '../enums';
@@ -5,11 +11,7 @@ import stream from "stream"
 import ansiRegex from 'ansi-regex'
 import { isProd } from "../utils"
 import { app } from "electron"
-
-// CommonJS only. ES Modules not supported for Dockerode when called from Electron main process. But works fine as type
-const Docker = require('dockerode');
-import type Dockerode from 'dockerode';
-const DockerodeCompose = require('dockerode-compose');
+import { isLinux, isMac } from '~/utils/system';
 
 class DockerService {
 
@@ -21,17 +23,22 @@ class DockerService {
     }
 
     private async intialize() {
-        // try to detect the socket path in the default locations on linux/mac
-        const socketPaths = [
-            `${process.env.HOME}/.docker/run/docker.sock`,
-            `${process.env.HOME}/.docker/desktop/docker.sock`,
-            '/var/run/docker.sock',
-        ];
-        for (const socketPath of socketPaths) {
-            if (await fs.stat(socketPath)) {
-                console.log('docker socket detected:', socketPath);
-                this.docker = new Docker({ socketPath });
-                break;
+        if (this.docker) return
+
+        if (isMac() || isLinux()) {
+            // try to detect the socket path in the default locations on linux/mac
+            const socketPaths = [
+                `${process.env.HOME}/.docker/run/docker.sock`,
+                `${process.env.HOME}/.docker/desktop/docker.sock`,
+                '/var/run/docker.sock',
+            ];
+            for (const socketPath of socketPaths) {
+                const sock = await fs.stat(socketPath).catch(() => { });
+                if (sock) {
+                    console.log('docker socket detected:', socketPath);
+                    this.docker = new Docker({ socketPath });
+                    break;
+                }
             }
         }
 

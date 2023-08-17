@@ -48,6 +48,7 @@ pnpm run build
 - Verify it works fine on Windows, Linux and Mac
 - Import custom config for each relay type on creation (eg. config.toml for nostr-rs-relay)
 - Create dedicated volume for each relay (for db, config files etc)
+- Mimic failing/flapping/slow relays
 
 ## License
 
