@@ -47,11 +47,12 @@ class RelayService {
         const relayId = await db.relays.add(relay);
 
         const dockerResult = await window.api.docker.create(relay);
-        await window.api.docker.start(relay);
-        const status = await window.api.docker.getStatus(relay)
 
         relay.path = dockerResult.path;
         await db.relays.update(relayId, relay);
+
+        await window.api.docker.start(relay);
+        const status = await window.api.docker.getStatus(relay)
 
         return { ...relay, status };
     }
