@@ -4,7 +4,6 @@ const Docker = require('dockerode');
 import type Dockerode from 'dockerode';
 const DockerodeCompose = require('dockerode-compose');
 
-// @ts-ignore
 import fs from 'node:fs/promises';
 import { DockerStatus, RelayType } from '../enums';
 import stream from "stream"
@@ -12,13 +11,19 @@ import ansiRegex from 'ansi-regex'
 import { isProd } from "../utils"
 import { app } from "electron"
 import { isLinux, isMac } from '../utils/system';
+import { homedir } from 'os';
+import { DockerCreated } from '../interfaces';
+import YAML from 'yaml'
+import { RelayDB } from '~/db/db';
 
 class DockerService {
 
     private docker: Dockerode | undefined
+    private baseDir: string;
 
     constructor() {
         console.log('docker service init')
+        this.baseDir = `${homedir()}/.forge`
         this.intialize();
     }
 
@@ -51,16 +56,18 @@ class DockerService {
         return this.docker ? DockerStatus.Running : DockerStatus.Stopped
     }
 
-    public async getStatus(containerIds: string[]): Promise<DockerStatus> {
+    public async getStatus(relay: RelayDB): Promise<DockerStatus> {
         if (!this.docker) {
             throw new Error('Docker not initialized');
         }
 
+        const compose = await this._getCompose(relay)
+        const containers = await this._getContainers(compose.projectName)
+        if (containers.length === 0) return DockerStatus.Stopped
+
         let allStatus = []
-        for (const containerId of containerIds) {
-            const container = this.getContainer(containerId)
-            const containerInfo = await container.inspect()
-            allStatus.push(containerInfo.State.Status === 'running')
+        for (const container of containers) {
+            allStatus.push(container.State === 'running')
         }
 
         if (allStatus.every(s => s)) {
@@ -72,53 +79,45 @@ class DockerService {
         return DockerStatus.Stopped
     }
 
-    public async startContainers(containerIds: string[]): Promise<void> {
+    public async startContainers(relay: RelayDB): Promise<void> {
         if (!this.docker) {
             throw new Error('Docker not initialized');
         }
 
-        for (const containerId of containerIds) {
-            const container = this.getContainer(containerId)
-            await container.start().catch(() => console.log('Relay already started'))
-        }
+        const compose = await this._getCompose(relay)
+        await compose.up()
     }
 
-    public async removeContainers(containerIds: string[]): Promise<void> {
+    public async stopContainers(relay: RelayDB): Promise<void> {
         if (!this.docker) {
             throw new Error('Docker not initialized');
         }
 
-        console.log("removing containers", containerIds.join(", "))
-
-        for (const containerId of containerIds) {
-            const container = this.getContainer(containerId)
-            await container.remove()
-        }
+        const compose = await this._getCompose(relay)
+        await compose.down()
     }
 
-    public getContainer(containerId: string): Dockerode.Container {
+
+
+    public async remove(relay: RelayDB): Promise<void> {
         if (!this.docker) {
             throw new Error('Docker not initialized');
         }
 
-        return this.docker.getContainer(containerId)
+        await fs.rm(this._getRelayPath(relay.port), { recursive: true })
     }
 
-    public async stopContainers(containerIds: string[]): Promise<void> {
+    public async streamLogs(relay: RelayDB, callback: (data: string) => void): Promise<() => void> {
         if (!this.docker) {
             throw new Error('Docker not initialized');
         }
 
-        for (const containerId of containerIds) {
-            const container = this.getContainer(containerId)
-            await container.stop().catch(() => console.log('Relay already stopped'))
-        }
-    }
+        const compose = await this._getCompose(relay)
+        const containers = await this._getContainers(compose.projectName)
 
-    public streamLogs(containerIds: string[], callback: (data: string) => void): () => void {
         const streams: stream.PassThrough[] = []
-        for (const containerId of containerIds) {
-            const container = this.getContainer(containerId)
+        for (const container of containers) {
+            const dockerContainer = this.docker.getContainer(container.Id)
             var logStream = new stream.PassThrough();
             streams.push(logStream)
 
@@ -128,11 +127,10 @@ class DockerService {
                 callback(data)
             });
 
-            container.logs({ follow: true, stdout: true, stderr: true, tail: 100 }, function (err: unknown, stream: NodeJS.ReadableStream | undefined) {
+            dockerContainer.logs({ follow: true, stdout: true, stderr: true, tail: 100 }, function (err: unknown, stream: NodeJS.ReadableStream | undefined) {
                 if (err) return
-                container.modem.demuxStream(stream, logStream, logStream);
+                dockerContainer.modem.demuxStream(stream, logStream, logStream);
             });
-
         }
 
         function close() {
@@ -144,49 +142,94 @@ class DockerService {
         return close
     }
 
-    public async create(port: number, relayType: RelayType, tag: string): Promise<{ port: number, containerIds: string[] }> {
+    public async create(relay: RelayDB): Promise<DockerCreated> {
         if (!this.docker) {
             throw new Error('Docker not initialized');
         }
 
+        const relayFolder = this._getRelayPath(relay.port)
+        await fs.mkdir(relayFolder, { recursive: true });
+
         let composeFileData = ''
-        switch (relayType) {
+        switch (relay.relayType) {
             case RelayType.NostrRsRelay:
-                composeFileData = await this.getNostrRsRelayDockerComposeFileData(tag, port)
+                composeFileData = await this._prepareNostrRsRelay(relayFolder, relay.relayTag, relay.port)
                 break;
             case RelayType.Nostream:
-                composeFileData = await this.getNostreamDockerComposeFileData(tag, port)
+                composeFileData = await this._prepareNostream(relay.relayTag, relay.port)
                 break;
             default:
                 throw new Error('Unknown relay type')
         }
 
-        const destinationFolder = `${app.getPath('userData')}/docker`
-        await fs.mkdir(destinationFolder, { recursive: true })
-        const finalComposeFilePath = `${destinationFolder}/docker-compose.yml`
-        await fs.writeFile(finalComposeFilePath, composeFileData)
-        const dockerGroupName = isProd ? 'forge_' : 'forge_dev_'
-        const compose = new DockerodeCompose(this.docker, finalComposeFilePath, dockerGroupName + port.toString())
-        const state = await compose.up()
+        const composeFilePath = `${relayFolder}/docker-compose.yml`
+        await fs.writeFile(composeFilePath, composeFileData)
 
         return {
-            port,
-            containerIds: state.services.map((s: { id: string }) => s.id)
+            port: relay.port,
+            path: relayFolder
         }
     }
 
-    private async getDockerComposeFileData(composeFileName: string) {
-        return fs.readFile(`${app.getAppPath()}/docker/${composeFileName}`, 'utf8')
+    // TODO: Add string type for dockerode-compose
+    private async _getCompose(relay: RelayDB) {
+        const rootPath = `${this._getRelayPath(relay.port)}`
+        const composeName = await this._getComposeName(rootPath)
+        return new DockerodeCompose(this.docker, `${rootPath}/docker-compose.yml`, composeName)
     }
 
-    private async getNostrRsRelayDockerComposeFileData(tag: string, port: number) {
-        const composeFile = await this.getDockerComposeFileData('docker-compose.nostr-rs-relay.yml')
+    // TODO: use custom dockerode-compose type instead of magic string
+    private async _getContainers(groupName: string): Promise<Dockerode.ContainerInfo[]> {
+        if (!this.docker) {
+            throw new Error('Docker not initialized');
+        }
+
+        return this.docker.listContainers({
+            all: true,
+            filters: { label: [`com.docker.compose.project=${groupName}`] },
+        });
+    }
+
+    private async _getComposeName(path: string, fileName: string = 'docker-compose.yml') {
+        const content = await this._getComposeFileData(path, fileName)
+        const parsed = YAML.parse(content)
+        return parsed.name
+    }
+
+    private async _getComposeFileData(path: string, fileName: string = 'docker-compose.yml') {
+        return fs.readFile(`${path}/${fileName}`, 'utf8')
+    }
+
+    private async _prepareNostrRsRelay(destinationFolder: string, tag: string, port: number): Promise<string> {
+        const sourceFolder = `${app.getAppPath()}/docker/nostr-rs-relay`
+
+        // Write config.toml
+        const configFileName = 'config.toml'
+        const configFileContent = await fs.readFile(`${sourceFolder}/${configFileName}`, 'utf8')
+        await fs.writeFile(`${destinationFolder}/${configFileName}`, configFileContent)
+
+        // Create data folder
+        await fs.mkdir(`${destinationFolder}/data`, { recursive: true })
+
+        // Copy docker-compose.yml
+        const dockerGroupName = isProd ? 'forge' : 'forge-dev'
+        const composeFile = await this._getComposeFileData(sourceFolder)
+        return composeFile
+            .replaceAll('{{name}}', `${dockerGroupName}-${port.toString()}`)
+            .replaceAll('{{tag}}', tag)
+            .replaceAll('{{port}}', port.toString())
+    }
+
+    private async _prepareNostream(tag: string, port: number) {
+        const sourceFolder = `${app.getAppPath()}/docker/nostream`
+
+        // Copy docker-compose.yml
+        const composeFile = await this._getComposeFileData(sourceFolder)
         return composeFile.replaceAll('{{tag}}', tag).replaceAll('{{port}}', port.toString())
     }
 
-    private async getNostreamDockerComposeFileData(tag: string, port: number) {
-        const composeFile = await this.getDockerComposeFileData('docker-compose.nostream.yml')
-        return composeFile.replaceAll('{{tag}}', tag).replaceAll('{{port}}', port.toString())
+    private _getRelayPath(port: number) {
+        return this.baseDir + '/' + port.toString()
     }
 
 }

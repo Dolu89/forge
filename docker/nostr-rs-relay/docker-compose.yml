@@ -1,0 +1,10 @@
+version: '3.3'
+name: {{name}}
+services:
+    nostr-rs-relay:
+        image: dolu89/forge-nostr-rs-relay:{{tag}}
+        ports:
+            - '{{port}}:8080'
+        volumes:
+            - './config.toml:/usr/src/app/config.toml'
+            - './data:/usr/src/app/db'

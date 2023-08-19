@@ -37,6 +37,7 @@
     "highlight.js": "^11.8.0",
     "nostr-tools": "^1.14.0",
     "pinia": "^2.1.6",
-    "vue-clipboard3": "^2.0.0"
+    "vue-clipboard3": "^2.0.0",
+    "yaml": "^2.3.1"
   }
 }

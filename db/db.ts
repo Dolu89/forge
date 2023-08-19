@@ -1,21 +1,21 @@
 import Dexie, { Table } from 'dexie';
 import { RelayType } from '~/enums';
 
-export interface Relay {
+export interface RelayDB {
   id?: number;
   port: number;
-  containerIds: string[];
+  path: string;
   relayType: RelayType;
   relayTag: string;
 }
 
 export class DbContext extends Dexie {
-  relays!: Table<Relay>;
+  relays!: Table<RelayDB>;
 
   constructor() {
     super('forge');
     this.version(1).stores({
-      relays: '++id, port, containerIds, relayType, relayTag',
+      relays: '++id, port, path, relayType, relayTag',
     });
   }
 }

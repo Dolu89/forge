@@ -11,7 +11,7 @@
             <n-space>
               <n-button @click="startAll">Start all</n-button>
               <n-button @click="stopAll">Stop all</n-button>
-              <n-button @click="modalStore.toggleModal()"
+              <n-button type="primary" @click="modalStore.toggleModal()"
                 >Create relay</n-button
               >
             </n-space>

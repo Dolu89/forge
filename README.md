@@ -15,6 +15,8 @@ A desktop app to play with nostr in local
   </tr>
 </table>
 
+🚨 Until the first official release, you may need to erase all data (IndexedDB and ~/.forge/*)
+
 ## Development
 
 ```sh

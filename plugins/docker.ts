@@ -1,35 +1,29 @@
+import { RelayDB } from "~/db/db"
+
 export default defineNuxtPlugin(() => {
 
   const getDockerStatus = async () => {
     return window.api.docker.getDockerStatus()
   }
 
-  const getStatus = async (containerIds: string[]) => {
-    return window.api.docker.getStatus(containerIds)
+  const getStatus = async (relay: RelayDB) => {
+    return window.api.docker.getStatus(relay.port)
   }
 
-  const getContainer = async (containerId: string) => {
-    return window.api.docker.getContainer(containerId)
+  const start = async (relay: RelayDB) => {
+    return window.api.docker.start(relay.port)
   }
 
-  const start = async (containerIds: string[]) => {
-    return window.api.docker.start(containerIds)
+  const stop = async (relay: RelayDB) => {
+    return window.api.docker.stop(relay)
   }
 
-  const stop = async (containerIds: string[]) => {
-    return window.api.docker.stop(containerIds)
+  const create = async (relay: RelayDB) => {
+    return window.api.docker.create(relay)
   }
 
-  const remove = async (containerIds: string[]) => {
-    return window.api.docker.remove(containerIds)
-  }
-
-  const create = async (port: number, relayType: string, tag: string) => {
-    return window.api.docker.create(port, relayType, tag)
-  }
-
-  const streamLogs = (key: string, containerIds: string[], callback: (data: string) => void) => {
-    window.api.docker.streamLogs(key, containerIds, (data: string) => {
+  const streamLogs = (key: string, relay: RelayDB, callback: (data: string) => void) => {
+    window.api.docker.streamLogs(key, relay, (data: string) => {
       callback(data)
     })
   }
@@ -43,10 +37,8 @@ export default defineNuxtPlugin(() => {
       docker: {
         getDockerStatus,
         getStatus,
-        getContainer,
         start,
         stop,
-        remove,
         create,
         streamLogs,
         stopStreamLogs,

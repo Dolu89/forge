@@ -1,7 +1,8 @@
-import { Relay, db } from "~/db/db";
+import { RelayDB, db } from "~/db/db";
 import { DockerStatus, RelayType } from "~/enums";
 import relayData from "~/data/relay";
 import { RelayExtended } from "~/interfaces";
+import { isProd } from "~/utils";
 
 class RelayService {
 
@@ -12,7 +13,7 @@ class RelayService {
         while (usedPorts.includes(firstUnusedPort)) {
             firstUnusedPort++;
         }
-        return firstUnusedPort;
+        return isProd ? firstUnusedPort : firstUnusedPort + 20_000;
     }
 
     public async getById(id: number): Promise<RelayExtended | undefined> {
@@ -20,7 +21,7 @@ class RelayService {
         if (!relay) return undefined;
         return {
             ...relay,
-            status: await window.api.docker.getStatus(relay.containerIds),
+            status: await window.api.docker.getStatus(relay),
         }
     }
 
@@ -29,7 +30,7 @@ class RelayService {
         const relayPromises = relays.map(async (r) => {
             return {
                 ...r,
-                status: await window.api.docker.getStatus(r.containerIds),
+                status: await window.api.docker.getStatus(r),
             }
         });
         return await Promise.all(relayPromises);
@@ -37,42 +38,45 @@ class RelayService {
 
     public async add(relayType: RelayType, tag: string): Promise<RelayExtended> {
         const nextPort = await this.getNextPort(relayType);
-        const result = await window.api.docker.create(nextPort, relayType, tag);
-
-        const relay: Relay = {
+        let relay: RelayDB = {
             port: nextPort,
-            containerIds: result.containerIds,
+            path: '',
             relayType,
             relayTag: tag
         }
         const relayId = await db.relays.add(relay);
 
-        const status = await window.api.docker.getStatus(relay.containerIds)
+        const dockerResult = await window.api.docker.create(relay);
+        await window.api.docker.start(relay);
+        const status = await window.api.docker.getStatus(relay)
 
-        return { ...relay, id: relayId as number, status: status };
+        relay.path = dockerResult.path;
+        await db.relays.update(relayId, relay);
+
+        return { ...relay, status };
     }
 
     public async start(port: number): Promise<DockerStatus> {
         const relay = await db.relays.get({ port });
         if (!relay) throw new Error('Relay not found');
-        await window.api.docker.start(relay.containerIds);
-        const status = await window.api.docker.getStatus(relay.containerIds);
+        await window.api.docker.start(relay);
+        const status = await window.api.docker.getStatus(relay);
         return status;
     }
 
     public async stop(port: number): Promise<DockerStatus> {
         const relay = await db.relays.get({ port });
         if (!relay) throw new Error('Relay not found');
-        await window.api.docker.stop(relay.containerIds);
-        const status = await window.api.docker.getStatus(relay.containerIds);
+        await window.api.docker.stop(relay);
+        const status = await window.api.docker.getStatus(relay);
         return status;
     }
 
     public async remove(port: number) {
         const relay = await db.relays.get({ port });
         if (!relay) throw new Error('Relay not found');
-        await this.stop(port);
-        await window.api.docker.remove(relay.containerIds);
+        await window.api.docker.stop(relay);
+        await window.api.docker.remove(relay);
         await db.relays.delete(relay.id as number);
     }
 

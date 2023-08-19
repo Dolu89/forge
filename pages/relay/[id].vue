@@ -132,13 +132,9 @@ async function streamLogs(id: number) {
   if (isStreamingLogs) return;
 
   const relay = await RelayService.getById(id);
-  if (
-    relay?.status !== DockerStatus.Running ||
-    relay?.containerIds.length === 0
-  )
-    return;
+  if (relay?.status !== DockerStatus.Running) return;
 
-  $docker.streamLogs(id.toString(), relay?.containerIds, (data) => {
+  $docker.streamLogs(id.toString(), relay, (data) => {
     logRef.value += data + "\n";
     logInstRef.value?.scrollTo({ position: "bottom", slient: true });
   });
