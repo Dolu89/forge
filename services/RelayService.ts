@@ -2,18 +2,19 @@ import { RelayDB, db } from "~/db/db";
 import { DockerStatus, RelayType } from "~/enums";
 import relayData from "~/data/relay";
 import { RelayExtended } from "~/interfaces";
-import { isProd } from "~/utils";
 
 class RelayService {
 
     private async getNextPort(relayType: RelayType) {
-        const portStart = relayData.find(r => r.name === relayType)!.portStart;
+        let portStart = relayData.find(r => r.name === relayType)!.portStart;
+        portStart = isProd ? portStart : portStart + 20_000;
+
         const usedPorts = (await db.relays.where({ relayType }).toArray()).map(r => (r.port));
         let firstUnusedPort = portStart;
         while (usedPorts.includes(firstUnusedPort)) {
             firstUnusedPort++;
         }
-        return isProd ? firstUnusedPort : firstUnusedPort + 20_000;
+        return firstUnusedPort;
     }
 
     public async getById(id: number): Promise<RelayExtended | undefined> {
